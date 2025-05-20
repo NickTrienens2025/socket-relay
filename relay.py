@@ -1,5 +1,6 @@
 import asyncio
 import websockets
+import os
 
 connected_clients = set()
 
@@ -20,7 +21,9 @@ async def relay(websocket, path):
         connected_clients.remove(websocket)
 
 async def main():
-    async with websockets.serve(relay, "0.0.0.0", 8765):
+    port = int(os.getenv("PORT", 8080))
+    async with websockets.serve(relay, "0.0.0.0", port):
+        print(f"WebSocket relay server started on port {port}")
         await asyncio.Future()  # run forever
 
 if __name__ == "__main__":
