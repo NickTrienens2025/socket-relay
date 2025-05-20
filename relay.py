@@ -1,47 +1,42 @@
 import asyncio
-import websockets
 import os
-from aiohttp import web
+from fastapi import FastAPI, WebSocket
+from fastapi.responses import JSONResponse
+import uvicorn
+from typing import Set
 
-connected_clients = set()
+app = FastAPI()
+connected_clients: Set[WebSocket] = set()
 
-async def health_check(request):
-    return web.Response(status=200)
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
-async def relay(websocket, path):
-    # Register client
+@app.get("/connections")
+async def get_connections():
+    return {
+        "total_connections": len(connected_clients),
+        "connection_ids": [id(client) for client in connected_clients]
+    }
+
+@app.websocket("/ws")
+async def relay(websocket: WebSocket):
+    await websocket.accept()
     connected_clients.add(websocket)
     try:
-        async for message in websocket:
+        while True:
+            message = await websocket.receive_text()
             # Broadcast to all clients except sender
             await asyncio.gather(*[
-                client.send(message)
+                client.send_text(message)
                 for client in connected_clients
                 if client != websocket
             ])
-    except websockets.exceptions.ConnectionClosed:
+    except Exception:
         pass
     finally:
         connected_clients.remove(websocket)
 
-async def main():
-    port = int(os.getenv("PORT", 80))
-    
-    # Create HTTP app for health check
-    app = web.Application()
-    app.router.add_get('/health', health_check)
-    
-    # Start HTTP server
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    
-    # Start WebSocket server
-    async with websockets.serve(relay, "0.0.0.0", port + 1):
-        print(f"WebSocket relay server started on port {port + 1}")
-        print(f"Health check endpoint available at http://0.0.0.0:{port}/health")
-        await asyncio.Future()  # run forever
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    port = int(os.getenv("PORT", 8888))
+    uvicorn.run(app, host="0.0.0.0", port=port)
