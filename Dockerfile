@@ -1,9 +1,10 @@
-FROM python:3.11-slim
+FROM python:3.9-slim
 
 WORKDIR /app
 
-COPY relay.py .
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-RUN pip install websockets
+COPY relay.py .
 
 CMD ["python", "relay.py"]
